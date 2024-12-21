@@ -81,10 +81,10 @@ def encrypt_password(public_key, data):
         except ValueError as e:
             print(f"Failed to deserialize public key:{e}")
     
-    data = __convert_bytes(data)
+    #data = __convert_bytes(data)
     enc_data = __encrypt_data(data)
     encrypted_data = public_key.encrypt(enc_data.ct, pad.OAEP(algorithm=hashes.SHA256(), mgf=pad.MGF1(algorithm=hashes.SHA256()), label=None))
-    return base64.b64encode(encrypted_data), enc_data
+    return base64.b64encode(encrypted_data), enc_data.key, enc_data.iv
 
 # Decrypt data using the private key
 def decrypt_password(private_key, encrypted_data, key, iv, private_pass: Union[str,bytes] = None):
@@ -94,8 +94,11 @@ def decrypt_password(private_key, encrypted_data, key, iv, private_pass: Union[s
                 private_key = deserialize_private_key(private_key, password=private_pass)
         except ValueError as e:
             print(f"Failed to deserialize public key:{e}")
-            
-    encrypted_data = __convert_base64(encrypted_data)
+
+    try:
+        encrypted_data = base64.b64decode(encrypted_data, validate=True)
+    except Exception as e:
+        return "Unable to process encrypted_data" 
     decrypted_data = private_key.decrypt(encrypted_data, pad.OAEP(algorithm=hashes.SHA256(), mgf=pad.MGF1(algorithm=hashes.SHA256()), label=None))
     decrypted_data = __decrypt_data(decrypted_data, key, iv)
     return decrypted_data
@@ -103,12 +106,10 @@ def decrypt_password(private_key, encrypted_data, key, iv, private_pass: Union[s
 ### ------- User Not Enabled Functions ------- ####
 
 # named tuple
-@property
 def __create_namedtuple(name, **fields):
     return namedtuple(name, fields.keys())(**fields)
 
 # convert to bytes
-@property
 def __convert_bytes(*values):
     if len(values) == 1:
         value = values[0]
@@ -117,7 +118,6 @@ def __convert_bytes(*values):
         return tuple(v.encode('ascii') if isinstance(v, str) else v for v in values)
 
 # convert to base64
-@property
 def __convert_base64(*values):
     if len(values) == 1:
         value = values[0]
@@ -126,7 +126,6 @@ def __convert_base64(*values):
         return [base64.b64decode(v) if isinstance(v, str) else v for v in values]
 
 # encrypting any password with AES
-@property
 def __encrypt_hash(password: str or bytes) -> str: # type: ignore
     password = __convert_bytes(password)
     
@@ -143,23 +142,22 @@ def __encrypt_hash(password: str or bytes) -> str: # type: ignore
     return __create_namedtuple('ENCHASH', ct=ct, key=key, iv=iv)
 
 # create hash + salt + AES
-@property
-def __encrypt_data(plain_password: str or bytes, salt_rounds: int = 12, salt_prefix: Union[str, bytes] = b'2b') -> str: # type: ignore   
+def __encrypt_data(password: str or bytes, salt_rounds: int = 12, salt_prefix: Union[str, bytes] = b'2b') -> str: # type: ignore   
     # print("Input plaintext password: " + plain_password)
     # print("Input salt rounds: " + str(salt_rounds))
     # print("Input salt prefix: " + salt_prefix.decode("utf-8"))
     
-    plain_password, salt_rounds, salt_prefix = __convert_bytes(plain_password, salt_rounds, salt_prefix)
+    password, salt_rounds, salt_prefix = __convert_bytes(password, salt_rounds, salt_prefix)
     
     salt = bcrypt.gensalt(salt_rounds,salt_prefix)    
-    hashed_password = bcrypt.hashpw(plain_password, salt)
+    hashed_password = bcrypt.hashpw(password, salt)
     ct, key, iv = __encrypt_hash(hashed_password)
     
     return __create_namedtuple('ENCPASS', ct=ct, key=key, iv=iv)
 
 # decrypt AES + hash + salt password
-@property
 def __decrypt_data(password: str or bytes, key: str or bytes, iv: str or bytes) -> bool: # type: ignore
+    print(password)
     password, key, iv = __convert_base64(password, key, iv) 
     
     cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
