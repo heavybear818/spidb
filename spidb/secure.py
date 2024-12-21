@@ -73,7 +73,7 @@ def deserialize_private_key(private_key_pem, password: Union[str,bytes] = None):
     return private_key
 
 # encrypt data using the public key
-def encrypt_password(public_key, data):
+def encrypt_password(public_key, password: str or bytes): # type: ignore
     if isinstance(public_key, bytes):
         try:
             if b"-----BEGIN PUBLIC KEY-----" in public_key:
@@ -82,12 +82,12 @@ def encrypt_password(public_key, data):
             print(f"Failed to deserialize public key:{e}")
     
     #data = __convert_bytes(data)
-    enc_data = __encrypt_data(data)
+    enc_data = __encrypt_data(password)
     encrypted_data = public_key.encrypt(enc_data.ct, pad.OAEP(algorithm=hashes.SHA256(), mgf=pad.MGF1(algorithm=hashes.SHA256()), label=None))
     return base64.b64encode(encrypted_data), enc_data.key, enc_data.iv
 
 # Decrypt data using the private key
-def decrypt_password(private_key, encrypted_data, key, iv, private_pass: Union[str,bytes] = None):
+def decrypt_password(private_key, encrypted_data: str or bytes, key: str or bytes, iv: str or bytes, private_pass: Union[str,bytes] = None): # type: ignore
     if isinstance(private_key, bytes):
         try:
             if b"-----BEGIN RSA PRIVATE KEY-----" in private_key:
